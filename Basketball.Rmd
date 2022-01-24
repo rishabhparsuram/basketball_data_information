@@ -1,0 +1,223 @@
+---
+title: "Basketball"
+author: "Rishabh Parsuram (rkp3)"
+date: "1/22/2022"
+output: html_document
+---
+
+# Introduction
+
+As a diehard fan of the NBA and numbers, I have always had an interest in merging two of my favorite concepts into one. I also have a big interest in data analysis and the conclusions/trends that can be made from analyzing the data. Therefore, using this data, I will seek to answer a few questions that I will state below.
+
+### Content
+
+This dataset contains data for every player who has been part of an NBA roster from the 1996 season to the 2021 season. There are demographic variables like age, height, weight, and place of birth. Also, there are biographical details like the team they played for and what year and round they were drafted in. And finally, it contains basic box score statistics like games played and average number of points, rebounds, and assists per game. 
+
+### Link to the data
+
+[**Source**](https://www.kaggle.com/justinas/nba-players-data)
+
+### Definition of Variables
+
+- `X`: Index
+- `player_name`: Name of the player
+- `team_abbreviation`: Abbreviated name of the team the player played for (at the end of the season)
+- `age`: Age of the player
+- `player_height`: Height of the player (centimeters)
+- `player_weight`: Weight of the player (kilograms)
+- `college`: Name of the college the player attended
+- `country`: Name of the country the player was born in (not neccessarily the nationality)
+- `draft_year`: The year the player was drafted
+- `draft_round`: The draft round the player was picked
+- `draft_number`: The number at which the player was picked in his draft round
+- `gp`: Games played throughout the season
+- `pts`: Average number of points scored
+- `reb`: Average number of rebounds grabbed
+- `ast`: Average number of assists distributed
+- `net_rating`: Team's point differential per 100 possessions while the player is on the court
+- `oreb_pct`: Percentage of available offensive rebounds the player grabbed while he was on the floor
+- `dreb_pct`: Percentage of available defensive rebounds the player grabbed while he was on the floor
+- `usg_pct`: Percentage of team plays used by the player while he was on the floor (FGA + Possession Ending FTA + TO)/(POSS)
+- `ts_pct`: Measure of the player's shooting efficiency that takes into account free throws, 2 and 3 point shots (PTS ÷ ((2 x FGA) + (0.88 x FTA)))
+- `ast_pct`: Percentage of teammate field goals the player assisted while he was on the floor
+- `season`: NBA season
+
+
+### Goals
+
+Make an application that takes a players name as input, and outputs plots showing how their games played, points, rebounds, assists per game along with advanced stats fluctuate throughout seasons (similar to Basketball Reference).
+
+### Defining the original dataset
+
+```{r}
+og_df = read.csv("all_seasons.csv")
+```
+
+#### Data Transformation
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+# Removing the index variable, height from cm to ft/inches (times 0.393701), weight from kg to pounds
+basketball_seasons_df = og_df %>% 
+  select(-X) %>%
+  mutate(Height = paste(floor((player_height / 2.54) / 12), "'", as.integer((player_height / 2.54) %% 12)), Weight = ceiling(player_weight * 2.20462)) %>%
+  select(-c(player_height, player_weight)) %>%
+  mutate(total_pts = ceiling(gp * pts), total_reb = ceiling(gp * reb), total_ast = ceiling(gp * ast))
+
+
+```
+
+For this exercise, I want to only consider the players who careers began in 1996 or later, in order to get their full careers listed. We could theoretically consider everyone, but then guys like Michael Jordan will have lower career totals, which is not indicative of their success.
+```{r}
+updated_df = basketball_seasons_df %>%
+  filter(draft_year >= 1996)
+
+box_score_grapher = function(name){
+  player_df = filter(updated_df, player_name == name)
+  # Games played graph
+  gp_data <- data.frame(
+    season = player_df$season,
+    gp = player_df$gp
+  )
+  gp_graph = ggplot(gp_data, aes(x = season, y = gp, group = 1)) +
+    geom_line(color = "red") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Games Played", title = "Games Played by Season")
+  # Points scored graph
+  pts_data <- data.frame(
+    season = player_df$season,
+    pts = player_df$pts
+  )
+  pts_graph = ggplot(pts_data, aes(x = season, y = pts, group = 1)) +
+    geom_line(color = "green") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Points", title = "Points by Season")
+  # Rebounds graph
+  reb_data <- data.frame(
+    season = player_df$season,
+    reb = player_df$reb
+  )
+  reb_graph = ggplot(reb_data, aes(x = season, y = reb, group = 1)) +
+    geom_line(color = "blue") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Rebounds", title = "Rebounds by Season")
+  # Assists graph
+  ast_data <- data.frame(
+    season = player_df$season,
+    ast = player_df$ast
+  )
+  ast_graph = ggplot(ast_data, aes(x = season, y = ast, group = 1)) +
+    geom_line(color = "orange") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Assists", title = "Assists by Season")
+  grid.arrange(gp_graph, pts_graph, reb_graph, ast_graph, nrow = 2)
+}
+
+box_score_grapher("Stephen Curry")
+```
+
+Total statistics for a given player.
+
+```{r}
+total_statistics = function(name){
+  player_df = filter(updated_df, player_name == name)
+  career_pts = sum(player_df$total_pts)
+  career_reb = sum(player_df$total_reb)
+  career_ast = sum(player_df$total_ast)
+  matrix(c(career_pts, career_reb, career_ast), nrow = 1, ncol = 3, byrow = TRUE, dimnames = list(c(name), c("Career Points", "Career Rebounds", "Career Assists")))
+}
+total_statistics("Stephen Curry")
+```
+
+Other variables.
+
+```{r}
+demographics = function(name) {
+  player_df = filter(updated_df, player_name == name)
+  college = player_df$college[1]
+  country = player_df$country[1]
+  draft_year = player_df$draft_year[1]
+  draft_round = player_df$draft_round[1]
+  draft_number = player_df$draft_number[1]
+  college
+  matrix(c(college, country, draft_year, draft_round, draft_number), nrow = 1, ncol = 5, byrow = TRUE, dimnames = list(c(name), c("College", "Birth Country", "Draft Year", "Draft Round", "Draft Number")))
+}
+demographics("Stephen Curry")
+```
+
+Advanced stats graph.
+- `net_rating`: Team's point differential per 100 possessions while the player is on the court
+- `oreb_pct`: Percentage of available offensive rebounds the player grabbed while he was on the floor
+- `dreb_pct`: Percentage of available defensive rebounds the player grabbed while he was on the floor
+- `usg_pct`: Percentage of team plays used by the player while he was on the floor (FGA + Possession Ending FTA + TO)/(POSS)
+- `ts_pct`: Measure of the player's shooting efficiency that takes into account free throws, 2 and 3 point shots (PTS ÷ ((2 x FGA) + (0.88 x FTA)))
+- `ast_pct`: Percentage of teammate field goals the player assisted while he was on the floor
+```{r}
+advanced_stats_grapher = function(name){
+  player_df = filter(updated_df, player_name == name)
+  # Net Rating graph
+  net_rating_data <- data.frame(
+    season = player_df$season,
+    net_rating = player_df$net_rating
+  )
+  net_rating_graph = ggplot(net_rating_data, aes(x = season, y = net_rating, group = 1)) +
+    geom_line(color = "red") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Net Rating", title = "Net Rating by Season")
+  # O-reb pct graph
+  oreb_pct_data <- data.frame(
+    season = player_df$season,
+    oreb_pct = player_df$oreb_pct
+  )
+  oreb_pct_graph = ggplot(oreb_pct_data, aes(x = season, y = oreb_pct, group = 1)) +
+    geom_line(color = "green") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Offensive Rebound Percentage", title = "Offensive Rebound Percentage by Season")
+  # D-reb pct graph
+  dreb_pct_data <- data.frame(
+    season = player_df$season,
+    dreb_pct = player_df$dreb_pct
+  )
+  dreb_pct_graph = ggplot(dreb_pct_data, aes(x = season, y = dreb_pct, group = 1)) +
+    geom_line(color = "blue") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Defensive Rebound Percentage", title = "Defensive Rebound Percentage by Season")
+  # Usg pct graph
+  usg_pct_data <- data.frame(
+    season = player_df$season,
+    usg_pct = player_df$usg_pct
+  )
+  usg_pct_graph = ggplot(usg_pct_data, aes(x = season, y = usg_pct, group = 1)) +
+    geom_line(color = "orange") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Usage Percentage", title = "Usage Percentage by Season")
+  # TS pct graph
+  ts_pct_data <- data.frame(
+    season = player_df$season,
+    ts_pct = player_df$ts_pct
+  )
+  ts_pct_graph = ggplot(ts_pct_data, aes(x = season, y = ts_pct, group = 1)) +
+    geom_line(color = "orange") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "True Shooting Percentage", title = "True Shooting Percentage by Season")
+  # Ast pct graph
+  ast_pct_data <- data.frame(
+    season = player_df$season,
+    ast_pct = player_df$ast_pct
+  )
+  ast_pct_graph = ggplot(ast_pct_data, aes(x = season, y = ast_pct, group = 1)) +
+    geom_line(color = "orange") + 
+    scale_x_discrete(guide = guide_axis(check.overlap = TRUE)) + 
+    labs(x = "Season", y = "Assist Percentage", title = "Assist Percentage by Season")
+  grid.arrange(net_rating_graph, oreb_pct_graph, dreb_pct_graph, usg_pct_graph, ts_pct_graph, ast_pct_graph, nrow = 2)
+}
+
+advanced_stats_grapher("Stephen Curry")
+```
+
+# Acknowledgements
+
+The credit for the data goes to Justinas Cirtautas on Kaggle. Here is the [link](https://www.kaggle.com/justinas) to his Kaggle profile. Without the data, there is no way I would be able to conduct any of the analysis. 
